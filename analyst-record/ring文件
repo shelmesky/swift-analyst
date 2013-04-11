@@ -1,0 +1,435 @@
+下面的数据是 2 ** 4个虚节点
+4个设备
+3个副本情况产生的ring:
+
+In [7]: ring = RingData.load('object.ring.gz')
+
+In [8]: ring.
+ring.deserialize_v1  ring.devs            ring.load            ring.save            ring.serialize_v1    ring.to_dict
+
+In [8]: ring.to_dict()
+Out[8]: 
+{'devs': [{'device': 'sdb1',
+   'id': 0,
+   'ip': '127.0.0.1',
+   'meta': u'',
+   'port': 6010,
+   'region': 1,
+   'weight': 1.0,
+   'zone': 1},
+  {'device': 'sdb2',
+   'id': 1,
+   'ip': '127.0.0.1',
+   'meta': u'',
+   'port': 6020,
+   'region': 1,
+   'weight': 1.0,
+   'zone': 2},
+  {'device': 'sdb3',
+   'id': 2,
+   'ip': '127.0.0.1',
+   'meta': u'',
+   'port': 6030,
+   'region': 1,
+   'weight': 1.0,
+   'zone': 3},
+  {'device': 'sdb4',
+   'id': 3,
+   'ip': '127.0.0.1',
+   'meta': u'',
+   'port': 6040,
+   'region': 1,
+   'weight': 1.0,
+   'zone': 4}],
+ 'part_shift': 28,
+ 'replica2part2dev_id': [array('H', [2, 0, 0, 3, 3, 1, 1, 1, 3, 1, 1, 1, 3, 2, 2, 1]),
+  array('H', [1, 2, 3, 2, 2, 2, 0, 3, 2, 2, 3, 3, 1, 0, 1, 3]),
+  array('H', [3, 1, 1, 0, 0, 3, 2, 0, 0, 0, 2, 0, 0, 3, 0, 2])]}
+
+In [9]: 1 << (32 - 28)
+Out[9]: 16
+
+
+
+上面的object.ring.gz用以下命令生成：
+python2 ./swift-ring-builder object.builder create 4 3 1
+python2 ./swift-ring-builder object.builder add z1-127.0.0.1:6010/sdb1 1
+python2 ./swift-ring-builder object.builder add z2-127.0.0.1:6020/sdb2 1
+python2 ./swift-ring-builder object.builder add z3-127.0.0.1:6030/sdb3 1
+python2 ./swift-ring-builder object.builder add z4-127.0.0.1:6040/sdb4 1
+python2 ./swift-ring-builder object.builder rebalance
+
+
+=============================================================================
+
+
+partition是虚拟节点的数量，实际数量根据节点的规模来调整。
+
+生成ring.gz文件后，proxy server加载此文件。
+在收到请求后，proxy server根据收到的参数，是否含有account or container or object来判断由那个Controller来处理。
+例如针对swift list列出当前用户的container，则由Account Controller处理。
+它根据参数找到对应的node，算出参数的hash，再将hash做part_shift个数的右移操作，得到在r2p2d中的位置。
+然后在r2p2d中3个副本中查找，找到对应的3个node。
+找到后proxy-server将请求转发给3个当中的2个，并等待这2个container server返回结果给proxy server.
+
+
+=============================================================================
+
+swift中，account和container是用sqlite数据库保存的，具体的是，每个account和container对应一个DB文件。
+object是以二进制文件保存的。
+
+account/container/object都是以满足CAP理论中的AP理论保存在节点上，每个对象保存三份。
+所以说swift内部全部是分布式的，没有单点故障存在。
+
+因为没有强一致性，所以遵循BASE理论，保证了最终一致性。
+
+例如这个account的数据库文件，就保存了3个副本：
+root@swift-all-in-one:/mnt/sdb1# find ./ -name '429a8985f4f6b7d3ddb442e11692e5b3.db'
+./1/node/sdb1/accounts/68202/5b3/429a8985f4f6b7d3ddb442e11692e5b3/429a8985f4f6b7d3ddb442e11692e5b3.db
+./2/node/sdb2/accounts/68202/5b3/429a8985f4f6b7d3ddb442e11692e5b3/429a8985f4f6b7d3ddb442e11692e5b3.db
+./3/node/sdb3/accounts/68202/5b3/429a8985f4f6b7d3ddb442e11692e5b3/429a8985f4f6b7d3ddb442e11692e5b3.db
+
+使用sqlite filename.db 查看sqlite3数据库文件.
+
+=============================================================================
+
+python ./swift-ring-builder object.builder create 16 3 1
+python ./swift-ring-builder object.builder add z1-127.0.0.1:6010/sdb1 1
+python ./swift-ring-builder object.builder add z2-127.0.0.1:6020/sdb2 1
+
+       [
+        {'zone': 1, 'weight': 1.0,
+         'ip': '127.0.0.1', 'region': 1,
+         'port': 6010, 'parts': 0, 'meta': '',
+         'device': 'sdb1', 'parts_wanted': 98304, 'id': 0},
+        
+        {'zone': 2, 'weight': 1.0,
+         'ip': '127.0.0.1', 'region': 1,
+         'parts': 0, 'id': 1, 'meta': '',
+         'device': 'sdb2', 'parts_wanted': 98304, 'port': 6020}
+        ]
+
+
+#3个副本
+#2**16 = 65536个虚节点
+#2个物理节点(权重总和为2)
+#
+#2**16 * 3 / 2(权重) = parts_wanted = 98304
+
+
+=============================================================================
+
+
+下面是2 ** 4个虚节点, 3个副本, 3个设备产生的RING数据:
+
+{
+    "devs": [
+        {
+            "device": "sdb1",    # 设备名称
+            "id": 0,             # 设备ID
+            "ip": "127.0.0.1",   # 设备IP地址
+            "meta": "",          # 设备META信息
+            "port": 6010,        # 设备端口
+            "region": 1,         # 设备region
+            "weight": 1.0,       # 设备权重
+            "zone": 1            # 设备zone
+        }, 
+        {
+            "device": "sdb2", 
+            "id": 1, 
+            "ip": "127.0.0.1", 
+            "meta": "", 
+            "port": 6020, 
+            "region": 1, 
+            "weight": 1.0, 
+            "zone": 2
+        }, 
+        {
+            "device": "sdb3", 
+            "id": 2, 
+            "ip": "127.0.0.1", 
+            "meta": "", 
+            "port": 6030, 
+            "region": 1, 
+            "weight": 1.0, 
+            "zone": 3
+        }
+    ],
+    
+    # 因为是 2**4个虚节点, 所以此处为 32-28个 part_shift
+    # proxy_server根据account/container/object的HASH得到node时
+    # 会这样做: key -> md5 hash -> 取前4个字节(unsigned short, 32位) -> 右移part_shift
+    # 得到不大于 2**4 的节点的ID, 就是在下面的replica2part2dev_id中的index位置
+    "part_shift": 28,
+    
+    # 副本到虚节点到设备ID的映射, 是一个列表
+    # 其中包含3个列表元素, 每个都是其中一个副本的存/取需要的节点
+    
+    "replica2part2dev_id": [
+        [
+            2, 
+            1, 
+            0, 
+            1, 
+            1, 
+            0, 
+            0, 
+            1, 
+            1, 
+            2, 
+            0, 
+            0, 
+            1, 
+            1, 
+            0, 
+            2
+        ], 
+        [
+            0, 
+            0, 
+            2, 
+            2, 
+            2, 
+            2, 
+            2, 
+            2, 
+            2, 
+            1, 
+            2, 
+            2, 
+            2, 
+            2, 
+            1, 
+            1
+        ], 
+        [
+            1, 
+            2, 
+            1, 
+            0, 
+            0, 
+            1, 
+            1, 
+            0, 
+            0, 
+            0, 
+            1, 
+            1, 
+            0, 
+            0, 
+            2, 
+            0
+        ]
+    ]
+}
+    # 按照如下方式解读:
+    # 例如:
+    # ring.get_nodes("test_account", "test_container", "test_object")
+    # 根据指定的account, container, object的名字得到需要的虚节点id
+    # 得到的节点信息如下:
+[
+    2, 
+    [
+        {
+            "device": "sdb1", 
+            "id": 0, 
+            "ip": "127.0.0.1", 
+            "meta": "", 
+            "port": 6010, 
+            "region": 1, 
+            "weight": 1.0, 
+            "zone": 1
+        }, 
+        {
+            "device": "sdb3", 
+            "id": 2, 
+            "ip": "127.0.0.1", 
+            "meta": "", 
+            "port": 6030, 
+            "region": 1, 
+            "weight": 1.0, 
+            "zone": 3
+        }, 
+        {
+            "device": "sdb2", 
+            "id": 1, 
+            "ip": "127.0.0.1", 
+            "meta": "", 
+            "port": 6020, 
+            "region": 1, 
+            "weight": 1.0, 
+            "zone": 2
+        }
+    ]
+]
+
+第一个数字2是虚拟节点号, 它代表了根据指定的key得到HASH后,
+得到replica2part2dev_id这个数组中的index位置
+所以对应与3个副本, 分别保存在了不同的zone
+
+=============================================================================
+
+在增加或者减少设备的时候, 都需要对replica2part2dev_id做出调整, 达到在三个副本数组之中,
+达到最好的平衡性.
+
+[
+      2, 
+      1, 
+      0, 
+      1, 
+      1, 
+      0, 
+      0, 
+      1, 
+      1, 
+      2, 
+      0, 
+      0, 
+      1, 
+      1, 
+      0, 
+      2
+  ], 
+  [
+      0, 
+      0, 
+      2, 
+      2, 
+      2, 
+      2, 
+      2, 
+      2, 
+      2, 
+      1, 
+      2, 
+      2, 
+      2, 
+      2, 
+      1, 
+      1
+  ], 
+  [
+      1, 
+      2, 
+      1, 
+      0, 
+      0, 
+      1, 
+      1, 
+      0, 
+      0, 
+      0, 
+      1, 
+      1, 
+      0, 
+      0, 
+      2, 
+      0
+  ]
+]
+
+上面是3个设备时的replica2part2dev_id的列表, 下面是删除了一个设备之后, 再次平衡后的列表:
+[
+            1, 
+            1, 
+            0, 
+            1, 
+            1, 
+            0, 
+            0, 
+            1, 
+            1, 
+            0, 
+            0, 
+            0, 
+            1, 
+            1, 
+            0, 
+            0
+        ], 
+        [
+            0, 
+            0, 
+            1, 
+            1, 
+            0, 
+            1, 
+            1, 
+            0, 
+            0, 
+            1, 
+            0, 
+            0, 
+            1, 
+            1, 
+            1, 
+            1
+        ], 
+        [
+            1, 
+            1, 
+            1, 
+            0, 
+            0, 
+            1, 
+            1, 
+            0, 
+            0, 
+            0, 
+            1, 
+            1, 
+            0, 
+            0, 
+            0, 
+            0
+        ]
+
+
+=============================================================================
+
+下面是测试当副本数小于zone, 也就是设备时, replica2part2dev_id的情形:
+副本数为2, 设备数为3.
+
+[
+            1, 
+            0, 
+            2, 
+            1, 
+            2, 
+            0, 
+            1, 
+            0, 
+            0, 
+            1, 
+            0, 
+            0, 
+            0, 
+            2, 
+            0, 
+            0
+        ], 
+        [
+            2, 
+            1, 
+            0, 
+            0, 
+            1, 
+            2, 
+            2, 
+            1, 
+            2, 
+            2, 
+            1, 
+            2, 
+            1, 
+            1, 
+            2, 
+            1
+        ]
+    ]
+
+所以可以得出的结论就是:
+一般副本的数目固定后, 增加/删除设备只会针对replica2part2dev_id列表操作.
+
+=============================================================================
+
