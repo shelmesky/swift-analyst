@@ -1,3 +1,5 @@
+#!/usr/bin/python
+# --encoding: utf-8--
 # Copyright (c) 2010-2012 OpenStack, LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -774,6 +776,9 @@ class Controller(object):
         sources = []
         newest = config_true_value(req.headers.get('x-newest', 'f'))
         nodes = iter(nodes)
+        
+        # 根据找到的节点数，例如3个， 循环访问
+        # 并将结果保存返回
         while len(statuses) < attempts:
             try:
                 node = nodes.next()

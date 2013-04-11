@@ -1,3 +1,5 @@
+#!/usr/bin/python
+# --encoding: utf-8--
 # Copyright (c) 2010-2012 OpenStack, LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -47,11 +49,18 @@ class AccountController(Controller):
 
     def GETorHEAD(self, req):
         """Handler for HTTP GET/HEAD requests."""
+        # 根据account的值得到目标节点
         partition, nodes = self.app.account_ring.get_nodes(self.account_name)
+        # 排序得到的节点
         nodes = self.app.sort_nodes(nodes)
+        
+        #查询(读取)并返回相应
+        # GETorHEAD_base会根据最优的结果(最近的修改时间, 和3个副本最少返回两个的原则)
         resp = self.GETorHEAD_base(
             req, _('Account'), partition, nodes, req.path_info.rstrip('/'),
             len(nodes))
+        
+        # 如果找不到account尝试自动创建
         if resp.status_int == HTTP_NOT_FOUND and self.app.account_autocreate:
             if len(self.account_name) > MAX_ACCOUNT_NAME_LENGTH:
                 resp = HTTPBadRequest(request=req)
@@ -77,20 +86,28 @@ class AccountController(Controller):
     @public
     def PUT(self, req):
         """HTTP PUT request handler."""
+        # 如果是不允许的方法， 返回错误
         if not self.app.allow_account_management:
             return HTTPMethodNotAllowed(
                 request=req,
                 headers={'Allow': ', '.join(self.allowed_methods)})
+        
+        # 检查来自client的metadata是否正确
         error_response = check_metadata(req, 'account')
+        # 如果发生错误则返回 
         if error_response:
             return error_response
+        # 检测Account name的长度
         if len(self.account_name) > MAX_ACCOUNT_NAME_LENGTH:
             resp = HTTPBadRequest(request=req)
             resp.body = 'Account name length of %d longer than %d' % \
                         (len(self.account_name), MAX_ACCOUNT_NAME_LENGTH)
             return resp
+        
+        # 根据account name在ring中得到节点
         account_partition, accounts = \
             self.app.account_ring.get_nodes(self.account_name)
+        
         headers = {'X-Timestamp': normalize_timestamp(time.time()),
                    'x-trans-id': self.trans_id,
                    'Connection': 'close'}
