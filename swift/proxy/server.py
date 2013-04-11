@@ -77,11 +77,14 @@ class Application(object):
             config_true_value(conf.get('object_post_as_copy', 'true'))
         self.resellers_conf = ConfigParser()
         self.resellers_conf.read(os.path.join(swift_dir, 'resellers.conf'))
+        
+        # 为account/container/object初始化各自的ring结构
         self.object_ring = object_ring or Ring(swift_dir, ring_name='object')
         self.container_ring = container_ring or Ring(swift_dir,
                                                      ring_name='container')
         self.account_ring = account_ring or Ring(swift_dir,
                                                  ring_name='account')
+        
         self.memcache = memcache
         mimetypes.init(mimetypes.knownfiles +
                        [os.path.join(swift_dir, 'mime.types')])
@@ -119,6 +122,11 @@ class Application(object):
     def get_controller(self, path):
         """
         Get the controller to handle a request.
+        
+        得到一个controller然后处理请求.
+        controller的类型有account/container/object.
+        实际的请求是由controller处理的.
+        controller内包含PUT/POST/DELETE/GET/HEAD等HTTP方法.
 
         :param path: path from request
         :returns: tuple of (controller class, path dictionary)
@@ -142,6 +150,9 @@ class Application(object):
         """
         WSGI entry point.
         Wraps env in swob.Request object and passes it down.
+        
+        WSGI的入口点.
+        一个server在PasteDeplot中, 就是一个App, 并调用类的__call__方法.
 
         :param env: WSGI environment dictionary
         :param start_response: WSGI callable
@@ -150,6 +161,8 @@ class Application(object):
             if self.memcache is None:
                 self.memcache = cache_from_env(env)
             req = self.update_request(Request(env))
+            
+            # 开始处理请求
             return self.handle_request(req)(env, start_response)
         except UnicodeError:
             err = HTTPPreconditionFailed(
@@ -170,6 +183,13 @@ class Application(object):
         """
         Entry point for proxy server.
         Should return a WSGI-style callable (such as swob.Response).
+        
+        proxy server的入口点.
+        应该返回一个WSGI风格的回调.
+        
+        例如是这样:
+        handler(env, start_response):
+            ......
 
         :param req: swob.Request object
         """
@@ -191,7 +211,9 @@ class Application(object):
                     request=req, body='Invalid UTF8 or contains NULL')
 
             try:
+                # 根据request得到controller
                 controller, path_parts = self.get_controller(req.path)
+                
                 p = req.path_info
                 if isinstance(p, unicode):
                     p = p.encode('utf-8')
@@ -207,7 +229,10 @@ class Application(object):
 
             self.logger.set_statsd_prefix('proxy-server.' +
                                           controller.server_type.lower())
+            
+            # 将app自身实例和请求的参数传入到controller的__init__方法
             controller = controller(self, **path_parts)
+            
             if 'swift.trans_id' not in req.environ:
                 # if this wasn't set by an earlier middleware, set it now
                 trans_id = 'tx' + uuid.uuid4().hex
@@ -217,7 +242,10 @@ class Application(object):
             controller.trans_id = req.environ['swift.trans_id']
             self.logger.client_ip = get_remote_client(req)
             try:
+                # 根据请求的方法例如PUT/POST等
+                # 获取controller对应的方法
                 handler = getattr(controller, req.method)
+                
                 getattr(handler, 'publicly_accessible')
             except AttributeError:
                 allowed_methods = getattr(controller, 'allowed_methods', set())
@@ -244,6 +272,8 @@ class Application(object):
             # gets mutated during handling.  This way logging can display the
             # method the client actually sent.
             req.environ['swift.orig_req_method'] = req.method
+            
+            # 最终调用controller中的方法来处理请求
             return handler(req)
         except (Exception, Timeout):
             self.logger.exception(_('ERROR Unhandled exception in request'))
