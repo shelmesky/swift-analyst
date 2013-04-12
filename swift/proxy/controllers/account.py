@@ -115,9 +115,13 @@ class AccountController(Controller):
         if self.app.memcache:
             self.app.memcache.delete(
                 get_account_memcache_key(self.account_name))
+        
+        # 执行请求
         resp = self.make_requests(
             req, self.app.account_ring, account_partition, 'PUT',
             req.path_info, [headers] * len(accounts))
+        
+        # 返回结果
         return resp
 
     @public

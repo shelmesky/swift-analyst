@@ -1,0 +1,7 @@
+#!/usr/bin/python
+import sys
+import os
+
+sw='swift -v -A http://192.168.56.205:8080/auth/v1.0 -U test:tester -K testing '
+cmd = sw + " ".join(sys.argv[1:])
+os.system(cmd)
