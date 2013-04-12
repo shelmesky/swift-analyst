@@ -597,21 +597,33 @@ class Controller(object):
         Sends an HTTP request to multiple nodes and aggregates the results.
         It attempts the primary nodes concurrently, then iterates over the
         handoff nodes as needed.
+        
+        发送HTTP请求到多个节点, 并且将结果聚合在一起.
+        并发的尝试主要节点, 然后做必要性的尝试有问题的节点.
 
         :param headers: a list of dicts, where each dict represents one
                         backend request that should be made.
         :returns: a swob.Response object
         """
+        # 根据controller/account.py中传递过来的partition
+        # 再次获取nodes
         start_nodes = ring.get_part_nodes(part)
+        
         nodes = self.iter_nodes(part, start_nodes, ring)
+        
+        # 调用eventlet并发执行_make_request请求
         pile = GreenPile(len(start_nodes))
         for head in headers:
             pile.spawn(self._make_request, nodes, part, method, path,
                        head, query_string, self.app.logger.thread_locals)
+        
+        # 获得请求结果
         response = [resp for resp in pile if resp]
         while len(response) < len(start_nodes):
             response.append((HTTP_SERVICE_UNAVAILABLE, '', ''))
         statuses, reasons, bodies = zip(*response)
+        
+        # 获取最优的返回结果
         return self.best_response(req, statuses, reasons, bodies,
                                   '%s %s' % (self.server_type, req.method))
 
@@ -620,6 +632,7 @@ class Controller(object):
         """
         Given a list of responses from several servers, choose the best to
         return to the API.
+        根据传递过来的多个server返回的请求, 选择最优的请求并返回.
 
         :param req: swob.Request object
         :param statuses: list of statuses returned

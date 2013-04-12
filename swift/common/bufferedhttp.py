@@ -114,6 +114,10 @@ def http_connect(ipaddr, port, device, partition, method, path,
     Helper function to create an HTTPConnection object. If ssl is set True,
     HTTPSConnection will be used. However, if ssl=False, BufferedHTTPConnection
     will be used, which is buffered for backend Swift services.
+    
+    此函数以友好的方式创建HTTPConnection对象.
+    如果设置了ssl参数, 则调用HTTPSConnection.
+    其他情况, 如果ssl=False, 则会使用BufferedHTTPConnection, 给Swift服务提供可缓存的后端.
 
     :param ipaddr: IPv4 address to connect to
     :param port: port to connect to

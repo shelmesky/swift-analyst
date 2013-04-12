@@ -86,6 +86,8 @@ class AccountController(Controller):
     @public
     def PUT(self, req):
         """HTTP PUT request handler."""
+        # 处理HTTP PUT请求
+        
         # 如果是不允许的方法， 返回错误
         if not self.app.allow_account_management:
             return HTTPMethodNotAllowed(
@@ -117,6 +119,8 @@ class AccountController(Controller):
                 get_account_memcache_key(self.account_name))
         
         # 执行请求
+        # 这里只传递了account_partition, 没有传递account nodes
+        # make_request函数会根据account_partition再次获取accound nodes
         resp = self.make_requests(
             req, self.app.account_ring, account_partition, 'PUT',
             req.path_info, [headers] * len(accounts))
