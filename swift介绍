@@ -1,0 +1,21 @@
+1. swift架构
+(0). 各组件和作用
+(1). SAIO
+
+2. CAP和BASE
+(0). CAP理论
+(1). CA/CP/AP
+(2). BASE理论和swift
+
+3. RING结构
+(0). Constenting hash
+(1). swift-ring-builder
+(2). 测试ring.gz文件
+
+4. proxy server工作原理
+(0). __call__
+(1). PUT/POST/GET
+(2). controller(PUT/POST/GET)
+(3). controller.base(make_requests/_make_requests) 
+(4). key: eventlet.spawn/pastedeploy/多进程(不方便pdb表示)
+
