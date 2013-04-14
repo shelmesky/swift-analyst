@@ -9,10 +9,11 @@ object_ring = "object.ring.gz"
 
 from swift.common.ring import Ring, RingData
 
-#ring = Ring(object_ring)
+ring = Ring(object_ring)
 #pp(ring.get_nodes("test_account", "test_container", "test_object"))
+pp(ring.get_more_nodes(40783))
 
-ring_data = RingData.load(object_ring)
-pp(ring_data.to_dict())
+#ring_data = RingData.load(object_ring)
+#pp(ring_data.to_dict())
 
 

@@ -547,6 +547,8 @@ class Controller(object):
         """
         Node iterator that will first iterate over the normal nodes for a
         partition and then the handoff partitions for the node.
+        Node迭代器会首先为partition迭代普通节点，
+        然后再为partition迭代handoff节点。
 
         :param partition: partition to iterate nodes for
         :param nodes: list of node dicts from the ring
@@ -599,7 +601,8 @@ class Controller(object):
         handoff nodes as needed.
         
         发送HTTP请求到多个节点, 并且将结果聚合在一起.
-        并发的尝试主要节点, 然后做必要性的尝试有问题的节点.
+        并发的尝试主要节点, 如果有必要就迭代其他能处理handoff的节点。
+        如果尝试正常的节点的时候出现问题，就找到其他存放副本的节点。
 
         :param headers: a list of dicts, where each dict represents one
                         backend request that should be made.

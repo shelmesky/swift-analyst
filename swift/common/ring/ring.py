@@ -1,3 +1,5 @@
+#!/usr/bin/python
+# --encoding: utf-8--
 # Copyright (c) 2010-2012 OpenStack, LLC.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -217,6 +219,9 @@ class Ring(object):
         Get the nodes that are responsible for the partition. If one
         node is responsible for more than one replica of the same
         partition, it will only appear in the output once.
+        
+        为partition找到对应的节点。
+        如果一个节点对应于多个副本，它(节点)仅仅在返回值中出现一次。
 
         :param part: partition to get nodes for
         :returns: list of node dicts
@@ -278,18 +283,35 @@ class Ring(object):
 
         See :func:`get_nodes` for a description of the node dicts.
         """
+        import ipdb
+        ipdb.set_trace()
         if time() > self._rtime:
             self._reload()
+        # 由partition得到主要节点(就是负责这个partition的节点)
         primary_nodes = self._get_part_nodes(part)
 
+        # 取出primary_nodes中的id号，并放入set数据结构
         used = set(d['id'] for d in primary_nodes)
+        
+        # 取出primary_nodes中的region并放入set结构
+        # 因为默认region相同，所以为set([1])
         same_regions = set(d['region'] for d in primary_nodes)
+        
+        # 取出primary_nodes中的region和zone的组合，返回一个元组
+        # 例如这样：set([(1, 2), (1, 3), (1, 1)])
         same_zones = set((d['region'], d['zone']) for d in primary_nodes)
 
+        # 计算当前ring总共有多少个partition，例如2 ** 16 = 65536个
         parts = len(self._replica2part2dev_id[0])
+        
+        # 根据参数part，计算经过md5并移位后的结构
+        # 例如参数part是40783，start就是42322
         start = struct.unpack_from(
             '>I', md5(str(part)).digest())[0] >> self._part_shift
+        
+        # 如果parts小于65536 则inc为1, 否则是除数
         inc = int(parts / 65536) or 1
+        
         # Multiple loops for execution speed; the checks and bookkeeping get
         # simpler as you go along
         for handoff_part in chain(xrange(start, parts, inc),
@@ -301,6 +323,8 @@ class Ring(object):
                     dev = self._devs[dev_id]
                     region = dev['region']
                     zone = (dev['region'], dev['zone'])
+                    
+                    # 关键的地方
                     if dev_id not in used and region not in same_regions:
                         yield dev
                         used.add(dev_id)
