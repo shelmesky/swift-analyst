@@ -3,7 +3,7 @@
 
 
 rm -f *.builder *.ring.gz backups/*.builder backups/*.ring.gz
-python2 ./swift-ring-builder object.builder create 16 3 1
+python2 ./swift-ring-builder object.builder create 4 3 1
 python2 ./swift-ring-builder object.builder add z1-127.0.0.1:6010/sdb1 1
 python2 ./swift-ring-builder object.builder add z2-127.0.0.1:6020/sdb2 1
 python2 ./swift-ring-builder object.builder add z3-127.0.0.1:6030/sdb3 1
