@@ -1,0 +1,1 @@
+在container/sync.py中，将capture_stdio注释掉，防止捕获标准IO
